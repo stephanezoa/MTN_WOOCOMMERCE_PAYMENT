@@ -1,4 +1,6 @@
 <?php
+defined('ABSPATH') || exit;
+
 class WC_MomoPay_View
 {
 
@@ -15,7 +17,7 @@ class WC_MomoPay_View
 					<td class="forminp">
 						<fieldset>
 							<legend class="screen-reader-text"><span>Merchant Email address</span></legend>
-							<input class="input-text regular-input " type="text" name="woocommerce_momopay_user_email" id="woocommerce_momopay_user_email" value="' . $cfg->user_email . '" placeholder="">
+							<input class="input-text regular-input " type="text" name="woocommerce_momopay_user_email" id="woocommerce_momopay_user_email" value="' . esc_attr($cfg->user_email) . '" placeholder="">
 							<p class="description">The Email address to receive payment notifications</p>
 						</fieldset>
 					</td>
@@ -27,7 +29,7 @@ class WC_MomoPay_View
 					<td class="forminp">
 						<fieldset>
 							<legend class="screen-reader-text"><span>MTN Merchant name</span></legend>
-							<input class="input-text regular-input " type="text" name="woocommerce_momopay_user_name" id="woocommerce_momopay_user_name" value="' . $cfg->user_name . '" placeholder="">
+							<input class="input-text regular-input " type="text" name="woocommerce_momopay_user_name" id="woocommerce_momopay_user_name" value="' . esc_attr($cfg->user_name) . '" placeholder="">
 							<p class="description">Company name you want your customers to see</p>
 						</fieldset>
 					</td>
@@ -39,7 +41,7 @@ class WC_MomoPay_View
 					<td class="forminp">
 						<fieldset>
 							<legend class="screen-reader-text"><span>Merchant phone number Legend</span></legend>
-							<input class="input-text regular-input " type="text" name="woocommerce_momopay_user_phone" id="woocommerce_momopay_user_phone" value="' . $cfg->user_phone . '" placeholder="">
+							<input class="input-text regular-input " type="text" name="woocommerce_momopay_user_phone" id="woocommerce_momopay_user_phone" value="' . esc_attr($cfg->user_phone) . '" placeholder="">
 							<p class="description">MTN MoMo phone number registered with MTN</p>
 						</fieldset>
 					</td>
@@ -96,7 +98,7 @@ class WC_MomoPay_View
 				<tr valign="top">
 					<th scope="row" class="titledesc">Payment Server URL</th>
 					<td class="forminp">
-						<p class="description">https://mtn.momopay.ch/doPaymentCallback/' . $cfg->license_id . '</p>
+						<p class="description">https://mtn.momopay.ch/doPaymentCallback/' . esc_html($cfg->license_id) . '</p>
 					</td>
 				</tr>
 				<tr valign="top">
@@ -106,7 +108,7 @@ class WC_MomoPay_View
 					<td class="forminp">
 						<fieldset>
 							<legend class="screen-reader-text"><span>API Key</span></legend>
-							<input class="input-text regular-input " type="text" name="woocommerce_momopay_api_key" id="woocommerce_momopay_api_key" value="' . $cfg->api_key . '" placeholder="">
+							<input class="input-text regular-input " type="text" name="woocommerce_momopay_api_key" id="woocommerce_momopay_api_key" value="' . esc_attr($cfg->api_key) . '" placeholder="">
 						</fieldset>
 					</td>
 				</tr>
@@ -117,7 +119,7 @@ class WC_MomoPay_View
 					<td class="forminp">
 						<fieldset>
 							<legend class="screen-reader-text"><span>API user</span></legend>
-							<input class="input-text regular-input " type="text" name="woocommerce_momopay_api_user_key" id="woocommerce_momopay_api_user_key" value="' . $cfg->api_user_key . '" placeholder="">
+							<input class="input-text regular-input " type="text" name="woocommerce_momopay_api_user_key" id="woocommerce_momopay_api_user_key" value="' . esc_attr($cfg->api_user_key) . '" placeholder="">
 						</fieldset>
 						<p class="description">You can get the Live keys on MTN Partner Portal</p>
 					</td>
@@ -147,13 +149,13 @@ class WC_MomoPay_View
 				<tr valign="top">
 					<th scope="row" class="titledesc">MoMo Merchant Email</th>
 					<td class="forminp">
-						<p class="description">' . $cfg->user_email . '</p>
+						<p class="description">' . esc_html($cfg->user_email) . '</p>
 					</td>
 				</tr>
 				<tr valign="top">
 					<th scope="row" class="titledesc">MoMo Merchant ID</th>
 					<td class="forminp">
-						<p class="description">' . $cfg->license_id . '</p>
+						<p class="description">' . esc_html($cfg->license_id) . '</p>
 					</td>
 				</tr>
 				<tr valign="top">
@@ -169,7 +171,7 @@ class WC_MomoPay_View
 					<td class="forminp">
 						<fieldset>
 							<legend class="screen-reader-text"><span>Collection Primary key</span></legend>
-							<input class="input-text regular-input " type="text" name="woocommerce_momopay_api_sub_key" id="woocommerce_momopay_api_sub_key" style="" value="' . $cfg->api_sub_key . '" placeholder="">
+							<input class="input-text regular-input " type="text" name="woocommerce_momopay_api_sub_key" id="woocommerce_momopay_api_sub_key" style="" value="' . esc_attr($cfg->api_sub_key) . '" placeholder="">
 							<p class="description ' . self::hideIfUsedSandboxMode($cfg->isSandboxMode()) . '" data-momoadv-box="live">
 								Get Live Collection Primary key here <a target="_blank" href="https://momoapi.mtn.com">https://momoapi.mtn.com</a>
 							</p>
@@ -216,13 +218,13 @@ class WC_MomoPay_View
 				<tr valign="top">
 					<th scope="row" class="titledesc">Merchant Email</th>
 					<td class="forminp">
-						<p class="description">' . $cfg->user_email_registered . '</p>
+						<p class="description">' . esc_html($cfg->user_email_registered) . '</p>
 					</td>
 				</tr>
 				<tr valign="top">
 					<th scope="row" class="titledesc">Merchant ID</th>
 					<td class="forminp">
-						<p class="description">' . $cfg->license_id . '</p>
+						<p class="description">' . esc_html($cfg->license_id) . '</p>
 					</td>
 				</tr>
 				<tr valign="top">
@@ -240,7 +242,7 @@ class WC_MomoPay_View
 				<tr valign="top">
 					<th scope="row" class="titledesc">Collection Primary key</th>
 					<td class="forminp">
-						<p class="description">' . $cfg->api_sub_key . '</p>
+						<p class="description">' . esc_html($cfg->api_sub_key) . '</p>
 					</td>
 				</tr>
 				</tbody>
@@ -277,38 +279,38 @@ class WC_MomoPay_View
 
 	public static function createReceiptBox($order, $payment_id, $cfg)
 	{
-		$process_desc = (!$payment_id) ? 'Payment failed, MTN MoMo plugin is not configured' : 'Accept payment on ' . $order->billing_phone . ' with a PIN';
+		$process_desc = (!$payment_id)
+			? esc_html__('Payment failed, MTN MoMo plugin is not configured', $cfg->domain)
+			: esc_html__('Accept payment on ', $cfg->domain) . esc_html($order->get_billing_phone()) . esc_html__(' with a PIN', $cfg->domain);
 
 		$orderCancelUrl = $order->get_cancel_order_url('');
-
-		// $siteUrl = get_site_url();
-		// $endpointUrl = $siteUrl . '/wp-json/woocommerce-mtn-momo-pay/v1/backend';
 		$endpointUrl = admin_url('admin-ajax.php');
 
 		$cart_page_id = wc_get_page_id('cart');
 		$cartUrl = $cart_page_id ? get_permalink($cart_page_id) : '';
 
 		$orderReceivedUrl = $order->get_checkout_order_received_url();
-		$cartPaymentWithIdUrl = $cartUrl . '?momo_payment_id=' . $payment_id;
+		$cartPaymentWithIdUrl = add_query_arg('momo_payment_id', rawurlencode((string) $payment_id), $cartUrl);
 
 		$sandboxLine = '';
 		if ($cfg->isSandboxMode()) {
-			$sandboxLine = '<h3 style="color:red; font-weight: bold;">' . __('Sandbox mode - payment will be accepted automatically', $cfg->domain) . '</h3>';
+			$sandboxLine = '<h3 style="color:red; font-weight: bold;">' . esc_html__('Sandbox mode - payment will be accepted automatically', $cfg->domain) . '</h3>';
 		}
 		$html = '<div class="momopay-checkout-box">' . $sandboxLine . '
 			<h3 id="momopay_processDescBox">' . $process_desc . '</h3>
-			<img class="momopay-checkout-logo" src="' . plugin_dir_url(__FILE__) . '../assets/img/mtn-momo-logo.png" alt="MTN MoMoPay payments">
+			<img class="momopay-checkout-logo" src="' . esc_url(plugin_dir_url(__FILE__) . '../assets/img/mtn-momo-logo.png') . '" alt="MTN MoMoPay payments">
 			<div class="mtn-momo-pay_error-box" id="momopay_errorBox"></div>
-			<input type="hidden" id="currentOrderId" value="' . $order->get_id() . '" />
-			<input type="hidden" id="paymentId" value="' . $payment_id . '" />
-			<input type="hidden" id="orderCancelUrl" value="' . $orderCancelUrl . '" />
-			<input type="hidden" id="endpointUrl" value="' . $endpointUrl . '" />
-			<input type="hidden" id="momononce" value="' . wp_create_nonce('momopay') . '" />
-			<input type="hidden" id="isSandbox" value="' . $cfg->isSandboxMode() . '" />
-			<input type="hidden" id="cartUrl" value="' . $cartUrl . '" />
-			<input type="hidden" id="orderReceivedUrl" value="' . $orderReceivedUrl . '" />
-			<input type="hidden" id="cartPaymentWithIdUrl" value="' . $cartPaymentWithIdUrl . '" />
-			<button id="cancelCurrentOrder">Cancel order</button>
+			<input type="hidden" id="currentOrderId" value="' . esc_attr($order->get_id()) . '" />
+			<input type="hidden" id="orderKey" value="' . esc_attr($order->get_order_key()) . '" />
+			<input type="hidden" id="paymentId" value="' . esc_attr($payment_id) . '" />
+			<input type="hidden" id="orderCancelUrl" value="' . esc_url($orderCancelUrl) . '" />
+			<input type="hidden" id="endpointUrl" value="' . esc_url($endpointUrl) . '" />
+			<input type="hidden" id="momononce" value="' . esc_attr(wp_create_nonce('momopay')) . '" />
+			<input type="hidden" id="isSandbox" value="' . ($cfg->isSandboxMode() ? '1' : '0') . '" />
+			<input type="hidden" id="cartUrl" value="' . esc_url($cartUrl) . '" />
+			<input type="hidden" id="orderReceivedUrl" value="' . esc_url($orderReceivedUrl) . '" />
+			<input type="hidden" id="cartPaymentWithIdUrl" value="' . esc_url($cartPaymentWithIdUrl) . '" />
+			<button id="cancelCurrentOrder">' . esc_html__('Cancel order', $cfg->domain) . '</button>
 		</div>';
 
 		return $html;

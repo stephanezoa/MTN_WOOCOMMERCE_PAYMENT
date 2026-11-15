@@ -1,4 +1,6 @@
 <?php
+defined('ABSPATH') || exit;
+
 class WC_MomoPay_Gateway extends WC_Payment_Gateway
 {
 	protected static $true_currencies = array(
@@ -133,7 +135,7 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 		$data = $this->getAdvData();
 		$post_data = $this->get_post_data();
 		if ($this->site_id) {
-			if ($post_data[$this->wc_field_pref . 'reset_user_data']) {
+			if ($this->getPostField($post_data, 'reset_user_data')) {
 				return $this->resetUserData();
 			} else {
 				return;
@@ -141,10 +143,10 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 		}
 
 		if ($this->is_user_registered) {
-			$mode = $post_data[$this->wc_field_pref . 'mode'];
-			$api_sub_key = $post_data[$this->wc_field_pref . 'api_sub_key'];
-			$api_key = $post_data[$this->wc_field_pref . 'api_key'];
-			$api_user = $post_data[$this->wc_field_pref . 'api_user'];
+			$mode = (int) $this->getPostField($post_data, 'mode');
+			$api_sub_key = $this->getPostField($post_data, 'api_sub_key');
+			$api_key = $this->getPostField($post_data, 'api_key');
+			$api_user = $this->getPostField($post_data, 'api_user');
 			$key_not_valid = false;
 
 			if (strlen($api_sub_key) !== 32) {
@@ -171,15 +173,21 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 				$data['site_id'] = $siteId;
 			}
 		} else {
+			$user_email = sanitize_email($this->getPostField($post_data, 'user_email'));
+			if (!is_email($user_email)) {
+				$settings = new WC_Admin_Settings();
+				$settings->add_error(__('Please enter a valid Merchant Email address.', $this->domain));
+				return;
+			}
 			$registrationResult = $this->registration(
-				$post_data[$this->wc_field_pref . 'user_name'],
-				$post_data[$this->wc_field_pref . 'user_email'],
-				$post_data[$this->wc_field_pref . 'user_phone']
+				$this->getPostField($post_data, 'user_name'),
+				$user_email,
+				$this->getPostField($post_data, 'user_phone')
 			);
 			if ($registrationResult) {
 				if ($this->license_id && $this->secret_key) {
 					$data['user_registered'] = true;
-					$data['user_email_registered'] = $post_data[$this->wc_field_pref . 'user_email'];
+					$data['user_email_registered'] = $user_email;
 					$data['license_id'] = $this->license_id;
 					$data['secret_key'] = $this->secret_key;
 				}
@@ -187,6 +195,46 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 		}
 
 		update_option('woocommerce_momopay_settings', $data, 'no');
+	}
+
+	/**
+	 * Header with a 3-step progress indicator for the settings page
+	 */
+	protected function getAdminHeaderHtml($current_step)
+	{
+		$steps = array(
+			1 => __('Register', $this->domain),
+			2 => __('API keys', $this->domain),
+			3 => __('Ready', $this->domain),
+		);
+
+		$html = '<div class="momopay-admin-header">';
+		$html .= '<h2 class="momopay-admin-title">' . esc_html__('MTN MoMo for WooCommerce', $this->domain) . '</h2>';
+		$html .= '<ol class="momopay-steps">';
+		foreach ($steps as $number => $label) {
+			$class = 'momopay-step';
+			if ($number < $current_step || $current_step == 3) {
+				$class .= ' is-done';
+			} elseif ($number == $current_step) {
+				$class .= ' is-current';
+			}
+			$html .= '<li class="' . esc_attr($class) . '"><span class="momopay-step__num">' . (int) $number . '</span>' . esc_html($label) . '</li>';
+		}
+		$html .= '</ol></div>';
+
+		return $html;
+	}
+
+	/**
+	 * Reads and sanitizes one posted settings field
+	 */
+	protected function getPostField($post_data, $name)
+	{
+		$key = $this->wc_field_pref . $name;
+		if (!is_array($post_data) || !isset($post_data[$key]) || is_array($post_data[$key])) {
+			return '';
+		}
+		return trim(sanitize_text_field(wp_unslash($post_data[$key])));
 	}
 
 	/**
@@ -239,7 +287,7 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 			),
 			'api_key' => array(
 				'title' => __('API key', $this->domain),
-				'type' => 'text',
+				'type' => 'password',
 				'label' => __('API key', $this->domain),
 				'default' => '',
 				'description' => __('Get it on MTN Partner Portal, the link is given during the Live onboarding process. 32 chars long.', $this->domain),
@@ -264,6 +312,8 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 	public function admin_options()
 	{
 		$currentAdminOptionsStep = $this->getCurrentStep();
+
+		echo $this->getAdminHeaderHtml($currentAdminOptionsStep);
 
 		if ($currentAdminOptionsStep == 3) {
 			$html = WC_MomoPay_View::createFinishBox($this);
@@ -406,7 +456,7 @@ p.html(sandbox_hint);
 			<tr valign="top">
 				<th scope="row" class="titledesc">' . __('Payment Server URL', $this->domain) . '</th>
 				<td class="forminp">
-					<p class="description">https://mtn.momopay.ch/doPaymentCallback/' . $this->license_id . '</p>
+					<p class="description">https://mtn.momopay.ch/doPaymentCallback/' . esc_html($this->license_id) . '</p>
 				</td>
 			</tr>
 			<tr valign="top">
@@ -831,7 +881,7 @@ p.html(sandbox_hint);
 		return array(
 			'amount' => (float) $order->get_total(),
 			'note' => 'Order ' . $order->get_order_number(),
-			'payer' => $this->cleanPhone($order->billing_phone)
+			'payer' => $this->cleanPhone($order->get_billing_phone())
 		);
 	}
 
@@ -846,7 +896,7 @@ p.html(sandbox_hint);
 
 	protected function addCommentToOrder($order)
 	{
-		$order->add_order_note(__('MoMo payment request sent, accept with PIN on ', $this->domain) . $order->billing_phone);
+		$order->add_order_note(__('MoMo payment request sent, accept with PIN on ', $this->domain) . $order->get_billing_phone());
 	}
 
 
@@ -880,27 +930,35 @@ p.html(sandbox_hint);
 			!$order->has_status('completed') &&
 			!$order->has_status('processing')
 		) {
-			$this->addCommentToOrder($order);
+			$existing = $this->getPendingTransactionByOrder($order_id);
+			if ($existing) {
+				// Page reloaded: do not send a second payment request to the customer
+				$payment_id = $existing->payment_id;
+			} else {
 			$prepare_order = $this->preparePaymentData($order);
+			if (!$prepare_order['payer']) {
+				wc_print_notice(__('A valid billing phone number is required to pay with MTN MoMo.', $this->domain), 'error');
+				return false;
+			}
+			$this->addCommentToOrder($order);
 			$payment_result = $this->sendPayment($prepare_order);
 			if (!$payment_result) {
 				return false;
 			}
 			$payment_result = json_decode($payment_result);
-			$payment_id = (@$payment_result->paymentId) ? $payment_result->paymentId : null;
+			$payment_id = (is_object($payment_result) && !empty($payment_result->paymentId)) ? sanitize_text_field((string) $payment_result->paymentId) : null;
 			if ($payment_id) {
 				$total_amount_to_save = ((float) $order->get_total()) * 100;
 				$trn = array(
 					'order_id' => $order_id,
-					'amount' => (int) $total_amount_to_save,
+					'amount' => (int) round($total_amount_to_save),
 					'phone_number' => $prepare_order['payer'],
 					'payment_id' => $payment_result->paymentId,
 					'failed_reason' => $this->getMsgFromApiAnswer($payment_result),
 					'status' => $this->pending_status_name
 				);
 				$this->saveTransaction($trn);
-			} else {
-
+			}
 			}
 
 			if ($order->get_payment_method() == 'momopay') {
@@ -972,12 +1030,19 @@ p.html(sandbox_hint);
 
 			$out = new stdClass();
 
-			if ($res['response']['code'] == 423 || ($res['body'] && ($res['response']['code'] == 200))) {
-				$a = json_decode($res['body']);
+			$http_code = (int) wp_remote_retrieve_response_code($res);
+			$body = wp_remote_retrieve_body($res);
 
-				$out->code = $res['response']['code'];
+			if ($http_code == 423 || ($body && $http_code == 200)) {
+				$a = json_decode($body);
+				if (!is_object($a)) {
+					$a = new stdClass();
+				}
 
-				if (@$a->status) {
+				$out->code = $http_code;
+				$out->status = '';
+
+				if (!empty($a->status) && in_array($a->status, array($this->paid_status_name, $this->failed_status_name, $this->pending_status_name), true)) {
 					$out->status = $a->status;
 				}
 
@@ -987,7 +1052,10 @@ p.html(sandbox_hint);
 					$out->message = __('Thank you, the order has been paid!', $this->domain);
 				}
 
-				$out->message = $this->getMsgFromApiAnswer($a);
+				$msg = $this->getMsgFromApiAnswer($a);
+				if ($msg !== null) {
+					$out->message = $msg;
+				}
 			} else {
 				$out->status = false;
 				$out->message = 'Failed to get payment status';
@@ -1058,12 +1126,21 @@ p.html(sandbox_hint);
 	{
 		global $wpdb;
 
-		$new_data = array(
-			'status' => $api_answer->status
-		);
+		$allowed = array($this->paid_status_name, $this->failed_status_name, $this->pending_status_name);
+		$status = (is_object($api_answer) && isset($api_answer->status)) ? $api_answer->status : '';
+		if (!in_array($status, $allowed, true)) {
+			return false;
+		}
 
-		if ($api_answer->message && $api_answer->status != $this->paid_status_name) {
-			$new_data['failed_reason'] = $api_answer->message;
+		$transaction = $this->getTransactionByPaymentId($payment_id);
+		if (!$transaction) {
+			return false;
+		}
+
+		$new_data = array('status' => $status);
+
+		if (!empty($api_answer->message) && $status != $this->paid_status_name) {
+			$new_data['failed_reason'] = mb_substr(sanitize_text_field((string) $api_answer->message), 0, 120);
 		}
 
 		$res = $wpdb->update(
@@ -1072,21 +1149,47 @@ p.html(sandbox_hint);
 			array('payment_id' => $payment_id)
 		);
 
-		if ($api_answer->status == $this->paid_status_name) {
-			$order_id = $wpdb->get_var(
-				$wpdb->prepare(
-					"SELECT order_id FROM " . WC_MomoPay_Helper::getPaymentsTableName() . " WHERE payment_id = %s",
-					$payment_id
-				)
-			);
+		if ($status == $this->paid_status_name) {
+			$order = wc_get_order((int) $transaction->order_id);
 
-			$order = new WC_Order($order_id);
-			$order->add_order_note(__('MoMo payment received', $this->domain));
-			$order->payment_complete();
+			// complete only an unpaid MoMo order, and only if the paid amount matches the order total
+			if (
+				$order
+				&& $order->get_payment_method() === $this->id
+				&& $order->needs_payment()
+				&& (int) round(((float) $order->get_total()) * 100) === (int) $transaction->amount
+			) {
+				$order->add_order_note(__('MoMo payment received', $this->domain));
+				$order->payment_complete($payment_id);
+			}
 		}
 
-		if (!$res)
-			return false;
+		return (bool) $res;
+	}
+
+	public function getTransactionByPaymentId($payment_id)
+	{
+		global $wpdb;
+
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM " . WC_MomoPay_Helper::getPaymentsTableName() . " WHERE payment_id = %s LIMIT 1",
+				$payment_id
+			)
+		);
+	}
+
+	public function getPendingTransactionByOrder($order_id)
+	{
+		global $wpdb;
+
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM " . WC_MomoPay_Helper::getPaymentsTableName() . " WHERE order_id = %s AND status = %s AND payment_id <> '' ORDER BY id DESC LIMIT 1",
+				(string) $order_id,
+				$this->pending_status_name
+			)
+		);
 	}
 }
 ;

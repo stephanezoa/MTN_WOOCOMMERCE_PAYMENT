@@ -1,20 +1,29 @@
 <?php
 /**
  * Plugin Name: ROY MTN MoMo for WooCommerce
- * Plugin URI: https://www.hr-skills.com
+ * Plugin URI: https://stephanezoa.site
  * Description: Accept payments with MTN MoMo in WooCommerce
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Stephane Zoa
- * Author URI: https://STephanezoa.com
+ * Author URI: https://stephanezoa.site
  * Licence: GPL2 
  * Text Domain: mtn-momo-pay
- * Tested up to: 6.1
- * Stable tag: 5.0
+ * Tested up to: 6.8
+ * Stable tag: 1.0.7
  * WC requires at least: 4.2.0
- * WC tested up to: 7.1
+ * WC tested up to: 11.3
  */
 
 defined('ABSPATH') or die("No access please!");
+
+define('MOMOPAY_PLUGIN_VERSION', '1.0.7');
+
+// Declare compatibility with WooCommerce HPOS (High-Performance Order Storage)
+add_action('before_woocommerce_init', function () {
+	if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
+	}
+});
 
 require_once __DIR__ . '/classes/class_momo_pay_helper.php';
 // require_once ___DIR__ . 'config.php';
@@ -46,29 +55,28 @@ if (!function_exists('is_woocommerce_activated')) {
 if (!function_exists('woo_momo_pay_admin_assets')) {
 	function woo_momo_pay_admin_assets()
 	{
-		wp_enqueue_script('momo_pay_script', plugin_dir_url(__FILE__) . 'assets/js/wc-mtn-momo-pay.js', array('jquery'), time(), true);
-		wp_enqueue_style('momo_pay_style', plugin_dir_url(__FILE__) . 'assets/css/wc-mtn-momo-pay.css', array(), time());
+		// load only on the plugin settings screen
+		if (!isset($_GET['section']) || sanitize_key(wp_unslash($_GET['section'])) !== 'momopay') {
+			return;
+		}
+		wp_enqueue_script('momo_pay_script', plugin_dir_url(__FILE__) . 'assets/js/wc-mtn-momo-pay.js', array('jquery'), MOMOPAY_PLUGIN_VERSION, true);
+		wp_enqueue_style('momo_pay_style', plugin_dir_url(__FILE__) . 'assets/css/wc-mtn-momo-pay.css', array(), MOMOPAY_PLUGIN_VERSION);
 	}
 }
 
 if (!function_exists('woo_momo_pay_public_assets')) {
 	function woo_momo_pay_public_assets()
 	{
-		wp_enqueue_script('momo_pay_script_public', plugin_dir_url(__FILE__) . 'assets/js/wc-mtn-momo-pay_public.js', array('jquery'), time(), true);
-		wp_enqueue_style('momo_pay_style', plugin_dir_url(__FILE__) . 'assets/css/wc-mtn-momo-pay.css', array(), time());
+		// load only on the order-pay page
+		if (!function_exists('is_checkout_pay_page') || !is_checkout_pay_page()) {
+			return;
+		}
+		wp_enqueue_script('momo_pay_script_public', plugin_dir_url(__FILE__) . 'assets/js/wc-mtn-momo-pay_public.js', array('jquery'), MOMOPAY_PLUGIN_VERSION, true);
+		wp_enqueue_style('momo_pay_style', plugin_dir_url(__FILE__) . 'assets/css/wc-mtn-momo-pay.css', array(), MOMOPAY_PLUGIN_VERSION);
 	}
 }
 
 
-if (!function_exists('process_momo_payment')) {
-	function process_momo_payment(WP_REST_Request $request)
-	{
-		$parameters = $request->get_json_params();
-		echo WC_MomoPay_Controller::processData(@$parameters);
-		exit();
-	}
-}
-;
 
 function woo_momo_pay_gateway_init()
 {
@@ -125,18 +133,6 @@ add_action('wp_enqueue_scripts', 'woo_momo_pay_public_assets');
 
 add_action('plugins_loaded', 'woo_momo_pay_gateway_init');
 
-add_action('rest_api_init', function () {
-	register_rest_route(
-		'woocommerce-mtn-momo-pay/v1',
-		'/backend',
-		array(
-			'methods' => 'POST',
-			'callback' => 'process_momo_payment',
-			'permission_callback' => '__return_true'
-		)
-	);
-});
-
 if (!add_filter('woocommerce_payment_gateways', 'woo_momopay_add_gateway_class'))
 	die;
 
@@ -147,8 +143,8 @@ add_action('woocommerce_check_cart_items', 'show_momo_errors_in_the_cart');
 function show_momo_errors_in_the_cart()
 {
 	if (isset($_GET['momo_payment_id'])) {
-		$momoPaymentId = sanitize_text_field($_GET['momo_payment_id']);
-		wc_print_notice(sprintf(__("MTN MoMo payment %s failed. Please try again.", "mtn-momo-pay"), $momoPaymentId), 'error');
+		$momoPaymentId = preg_replace('/[^A-Za-z0-9\-]/', '', sanitize_text_field(wp_unslash($_GET['momo_payment_id'])));
+		wc_print_notice(sprintf(esc_html__("MTN MoMo payment %s failed. Please try again.", "mtn-momo-pay"), esc_html($momoPaymentId)), 'error');
 	}
 }
 
@@ -157,11 +153,11 @@ function momopay_ajax()
 {
 	//check nonce, if it is invalid we will get 403 error
 	check_ajax_referer("momopay");
-	if (isset($_POST['data'])) {
-		$data = $_POST['data'];
-		echo WC_MomoPay_Controller::processData(@$data);
+	if (isset($_POST['data']) && is_array($_POST['data'])) {
+		$data = wp_unslash($_POST['data']);
+		echo WC_MomoPay_Controller::processData($data);
 	}
-	exit();
+	wp_die();
 }
 
 add_action('wp_ajax_momopay_ajax', 'momopay_ajax');
