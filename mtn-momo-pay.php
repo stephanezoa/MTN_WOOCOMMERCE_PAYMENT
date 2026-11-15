@@ -3,20 +3,20 @@
  * Plugin Name: ROY MTN MoMo for WooCommerce
  * Plugin URI: https://stephanezoa.site
  * Description: Accept payments with MTN MoMo in WooCommerce
- * Version: 1.0.8
+ * Version: 1.0.9
  * Author: Stephane Zoa
  * Author URI: https://stephanezoa.site
  * Licence: GPL2 
  * Text Domain: mtn-momo-pay
  * Tested up to: 6.8
- * Stable tag: 1.0.8
+ * Stable tag: 1.0.9
  * WC requires at least: 4.2.0
  * WC tested up to: 11.3
  */
 
 defined('ABSPATH') or die("No access please!");
 
-define('MOMOPAY_PLUGIN_VERSION', '1.0.8');
+define('MOMOPAY_PLUGIN_VERSION', '1.0.9');
 
 // Declare compatibility with WooCommerce HPOS (High-Performance Order Storage)
 add_action('before_woocommerce_init', function () {

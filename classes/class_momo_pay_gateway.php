@@ -126,7 +126,7 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 		$this->max_request_limit = $this->get_option('max_request_limit');
 
 		$this->currency = $this->getCurrency();
-		$this->location = $this->getLocation();
+		$this->location = 'CM';
 	}
 
 	/**
@@ -516,26 +516,9 @@ jQuery(document).ready(function() {
 			wc_enqueue_js(apply_filters('woocommerce_momopay_admin_options_js', $javascript));
 
 			$display_class = $this->isSandboxMode() ? 'display:none;' : '';
-			echo '<table class="form-table" style="' . $display_class . '" id="mtn_partner_portal_data"><tbody>
-				<tr valign="top">
-					<th scope="row" class="titledesc">' . __('Provider Callback Host', $this->domain) . '</th>
-					<td class="forminp">
-						<p class="description">mtn.momopay.ch</p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row" class="titledesc">' . __('Payment Server URL', $this->domain) . '</th>
-					<td class="forminp">
-						<p class="description">https://mtn.momopay.ch/doPaymentCallback/' . esc_html($this->license_id) . '</p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row" class="titledesc"></th>
-					<td class="forminp">
-						<p class="description"><i>' . __('Use these URLs on MTN Partner Portal -> API access', $this->domain) . '</i></p>
-					</td>
-				</tr>
-			</tbody></table>';
+			echo '<div style="' . $display_class . '; margin: 15px 0 20px; padding: 14px 18px; background: #f0fdf4; border-left: 4px solid #10b981; border-radius: 4px;" id="mtn_partner_portal_data">
+				<p style="margin: 0; font-size: 14px; color: #065f46;"><strong>' . __('Connexion directe MTN MoMo Cameroun :', $this->domain) . '</strong> ' . __('Votre boutique communique directement avec les serveurs officiels MTN (proxy.momoapi.mtn.com) avec l\'environnement <code>mtncameroon</code>. Aucun serveur tiers ni callback n\'est requis grâce à la vérification automatique par polling instantané.', $this->domain) . '</p>
+			</div>';
 		}
 	}
 
@@ -639,7 +622,7 @@ jQuery(document).ready(function() {
 		$this->api_user = @$adv_data['api_user'];
 
 		$this->currency = $this->getCurrency();
-		$this->location = $this->getLocation();
+		$this->location = 'CM';
 		$this->license_id = @$adv_data['license_id'];
 		$this->secret_key = @$adv_data['secret_key'];
 		$this->site_id = @$adv_data['site_id'];
@@ -763,29 +746,40 @@ jQuery(document).ready(function() {
 	}
 
 
-	protected function validateUserMoMoKeys($api_sub_key, $api_user, $api_key, $mode)
+	public function getMtnBaseUrl()
 	{
-		$url = 'https://momopay.clickon.ch/setKeys/' . $this->license_id;
-		$data = array(
-			'subKey' => $api_sub_key,
-			'currencyCode' => !empty($this->currency['code']) ? $this->currency['code'] : 'EUR',
-			'countryCode' => $this->location,
-			'type' => 'collection'
-		);
+		return $this->isSandboxMode() ? 'https://sandbox.momodeveloper.mtn.com' : 'https://proxy.momoapi.mtn.com';
+	}
 
-		if ($mode == 2) {
-			$data['apiUser'] = $api_user;
-			$data['apiKey'] = $api_key;
-		}
+	public function getMtnTargetEnvironment()
+	{
+		return $this->isSandboxMode() ? 'sandbox' : 'mtncameroon';
+	}
+
+	public function getMtnAccessToken($api_sub_key = null, $api_user = null, $api_key = null, $mode = null)
+	{
+		$sub_key = ($api_sub_key !== null) ? $api_sub_key : $this->api_sub_key;
+		$user = ($api_user !== null) ? $api_user : $this->api_user;
+		$key = ($api_key !== null) ? $api_key : $this->api_key;
+		$is_sandbox = ($mode !== null) ? ($mode == 1) : $this->isSandboxMode();
+
+		$base_url = $is_sandbox ? 'https://sandbox.momodeveloper.mtn.com' : 'https://proxy.momoapi.mtn.com';
+		$target_env = $is_sandbox ? 'sandbox' : 'mtncameroon';
+		$url = $base_url . '/collection/token/';
+
+		$auth_str = base64_encode(trim((string) $user) . ':' . trim((string) $key));
+		$headers = array(
+			'Ocp-Apim-Subscription-Key' => trim((string) $sub_key),
+			'X-Target-Environment' => $target_env,
+			'Authorization' => 'Basic ' . $auth_str,
+			'Content-Type' => 'application/json',
+			'Accept' => 'application/json'
+		);
 
 		$args = array(
 			'timeout' => 45,
-			'headers' => array(
-				'Content-Type' => 'application/json',
-				'x-secret-key' => $this->secret_key,
-				'version' => $this->version
-			),
-			'body' => json_encode($data)
+			'headers' => $headers,
+			'body' => json_encode(array())
 		);
 
 		$res = wp_remote_post($url, $args);
@@ -797,19 +791,26 @@ jQuery(document).ready(function() {
 
 		$code = (int) wp_remote_retrieve_response_code($res);
 		$body = wp_remote_retrieve_body($res);
-		$result = json_decode($body);
+		$data = json_decode($body);
 
-		if (!$result || !is_object($result)) {
-			$this->last_api_error = __('Échec de l\'enregistrement des réglages MoMo (réponse serveur invalide) !', $this->domain);
-			return false;
+		if ($code === 200 && is_object($data) && !empty($data->access_token)) {
+			return (string) $data->access_token;
 		}
 
-		if ($code != 200) {
-			$this->last_api_error = !empty($result->message) ? $result->message : ('Erreur HTTP ' . $code);
-			return false;
-		}
+		$msg = (is_object($data) && !empty($data->message)) ? $data->message : ('Erreur jeton MTN HTTP ' . $code);
+		$this->last_api_error = $msg;
+		return false;
+	}
 
-		return $result;
+	protected function validateUserMoMoKeys($api_sub_key, $api_user, $api_key, $mode)
+	{
+		$token = $this->getMtnAccessToken($api_sub_key, $api_user, $api_key, $mode);
+		if ($token) {
+			$result = new stdClass();
+			$result->siteId = 'MTN_CM_' . substr(md5($api_sub_key), 0, 10);
+			return $result;
+		}
+		return false;
 	}
 
 
@@ -971,9 +972,8 @@ jQuery(document).ready(function() {
 
 	protected function getLocation()
 	{
-		$array = wc_get_base_location();
-
-		return (isset($array['country'])) ? $array['country'] : '';
+		// Hardcoded strictly for Cameroon MTN
+		return 'CM';
 	}
 
 	public function formatPayerPhone($phone_num, $order = null)
@@ -981,38 +981,11 @@ jQuery(document).ready(function() {
 		$clean = $this->cleanPhone($phone_num);
 		$clean = preg_replace('/^00/', '', $clean);
 
-		$country = '';
-		if ($order && is_callable(array($order, 'get_billing_country'))) {
-			$country = strtoupper(trim((string) $order->get_billing_country()));
-		}
-		if (empty($country)) {
-			$loc = wc_get_base_location();
-			$country = !empty($loc['country']) ? strtoupper(trim((string) $loc['country'])) : '';
-		}
-
-		$prefixes = array(
-			'CM' => '237', // Cameroon
-			'CI' => '225', // Ivory Coast
-			'UG' => '256', // Uganda
-			'GH' => '233', // Ghana
-			'RW' => '250', // Rwanda
-			'BJ' => '229', // Benin
-			'CG' => '242', // Congo Brazzaville
-			'GN' => '224', // Guinea
-			'ZM' => '260', // Zambia
-			'NG' => '234', // Nigeria
-			'ZA' => '27',  // South Africa
-			'LR' => '231', // Liberia
-			'SS' => '211', // South Sudan
-			'SZ' => '268', // Eswatini
-		);
-
-		if (!empty($country) && isset($prefixes[$country])) {
-			$prefix = $prefixes[$country];
-			if (strpos($clean, $prefix) !== 0) {
-				$clean = ltrim($clean, '0');
-				$clean = $prefix . $clean;
-			}
+		// Format strictly for Cameroon (prefix 237, 12 digits total, e.g. 2376XXXXXXXX)
+		$prefix = '237';
+		if (strpos($clean, $prefix) !== 0) {
+			$clean = ltrim($clean, '0');
+			$clean = $prefix . $clean;
 		}
 
 		return $clean;
@@ -1054,7 +1027,7 @@ jQuery(document).ready(function() {
 
 	protected function isActiveGateway()
 	{
-		return ($this->site_id) ? true : false;
+		return (!empty($this->api_sub_key) && (!empty($this->site_id) || (!empty($this->api_user) && !empty($this->api_key))));
 	}
 
 	/**
@@ -1119,25 +1092,52 @@ jQuery(document).ready(function() {
 	}
 
 	/**
-	 * Process the payment field and redirect to checkout/pay page.
+	 * Send payment request directly to MTN Mobile Money API
 	 */
 	public function sendPayment($order)
 	{
-		$url = 'https://momopay.clickon.ch/doPayment/' . $this->license_id;
-		$data = array(
-			"amount" => $order['amount'],
-			"note" => $order['note'],
-			"payer" => $order['payer']
+		$access_token = $this->getMtnAccessToken();
+		if (!$access_token) {
+			return false;
+		}
+
+		$is_sandbox = $this->isSandboxMode();
+		$base_url = $this->getMtnBaseUrl();
+		$target_env = $this->getMtnTargetEnvironment();
+		$url = $base_url . '/collection/v1_0/requesttopay';
+
+		// Generate unique UUID v4 for transaction reference
+		$reference_id = wp_generate_uuid4();
+		$amount_int = (int) round((float) $order['amount']);
+		$payer_phone = $this->formatPayerPhone($order['payer']);
+		$external_id = 'MTN_' . time() . '_' . substr(md5(uniqid(mt_rand(), true)), 0, 8);
+		$currency = ($is_sandbox && $this->currency['code'] === 'EUR') ? 'EUR' : 'XAF';
+
+		$payload = array(
+			'amount' => (string) $amount_int,
+			'currency' => $currency,
+			'externalId' => $external_id,
+			'payer' => array(
+				'partyIdType' => 'MSISDN',
+				'partyId' => (string) $payer_phone
+			),
+			'payerMessage' => mb_substr('Commande ' . (!empty($order['note']) ? $order['note'] : ''), 0, 30),
+			'payeeNote' => 'Merci pour votre achat'
+		);
+
+		$headers = array(
+			'Authorization' => 'Bearer ' . $access_token,
+			'Ocp-Apim-Subscription-Key' => trim((string) $this->api_sub_key),
+			'X-Target-Environment' => $target_env,
+			'X-Reference-Id' => $reference_id,
+			'Content-Type' => 'application/json',
+			'Accept' => 'application/json'
 		);
 
 		$args = array(
 			'timeout' => 45,
-			'headers' => array(
-				'Content-Type' => 'application/json',
-				'x-secret-key' => $this->secret_key,
-				'version' => $this->version
-			),
-			'body' => json_encode($data)
+			'headers' => $headers,
+			'body' => json_encode($payload)
 		);
 
 		$res = wp_remote_post($url, $args);
@@ -1150,92 +1150,85 @@ jQuery(document).ready(function() {
 		$code = (int) wp_remote_retrieve_response_code($res);
 		$body = wp_remote_retrieve_body($res);
 
-		if (!empty($body)) {
-			$obj = json_decode($body);
-			if (is_object($obj)) {
-				if (!empty($obj->message) && (empty($obj->paymentId) || $code != 200)) {
-					$this->last_api_error = $obj->message;
-				}
-				if (!empty($obj->reason)) {
-					$this->last_api_error = $obj->reason;
-				}
-			}
-			if ($code == 200 && is_object($obj) && !empty($obj->paymentId)) {
-				return $body;
-			}
-			if ($code != 200) {
-				return false;
-			}
-			return $body;
+		// MTN returns 202 Accepted (or 200) when request to pay is successfully received
+		if ($code === 202 || $code === 200) {
+			$out = new stdClass();
+			$out->paymentId = $reference_id;
+			$out->externalId = $external_id;
+			return json_encode($out);
 		}
 
-		if ($code != 200) {
-			$this->last_api_error = 'Payment error (HTTP ' . $code . ')!';
-			return false;
-		}
-
+		$data = json_decode($body);
+		$msg = (is_object($data) && !empty($data->message)) ? $data->message : ('Erreur MTN HTTP ' . $code . ($body ? ': ' . $body : ''));
+		$this->last_api_error = $msg;
 		return false;
 	}
 
 	public function getPaymentStatus($payment_id)
 	{
 		try {
-			$url = 'https://momopay.clickon.ch/getPaymentStatus/' . $this->license_id;
-			$data = array("paymentId" => $payment_id);
+			$access_token = $this->getMtnAccessToken();
+			if (!$access_token) {
+				return false;
+			}
+
+			$base_url = $this->getMtnBaseUrl();
+			$target_env = $this->getMtnTargetEnvironment();
+			$url = $base_url . '/collection/v1_0/requesttopay/' . $payment_id;
+
+			$headers = array(
+				'Authorization' => 'Bearer ' . $access_token,
+				'Ocp-Apim-Subscription-Key' => trim((string) $this->api_sub_key),
+				'X-Target-Environment' => $target_env,
+				'Accept' => 'application/json'
+			);
 
 			$args = array(
 				'timeout' => 45,
-				'headers' => array('Content-Type' => 'application/json'),
-				'body' => json_encode($data)
+				'headers' => $headers
 			);
 
-			$res = wp_remote_post($url, $args);
+			$res = wp_remote_get($url, $args);
 
 			if (is_wp_error($res)) {
 				$this->last_api_error = $res->get_error_message();
 				return false;
 			}
-			;
+
+			$code = (int) wp_remote_retrieve_response_code($res);
+			$body = wp_remote_retrieve_body($res);
+			$data = json_decode($body);
 
 			$out = new stdClass();
+			$out->code = $code;
+			$out->status = '';
+			$out->message = '';
 
-			$http_code = (int) wp_remote_retrieve_response_code($res);
-			$body = wp_remote_retrieve_body($res);
-
-			if ($http_code == 423 || ($body && $http_code == 200)) {
-				$a = json_decode($body);
-				if (!is_object($a)) {
-					$a = new stdClass();
+			if ($code === 200 && is_object($data) && !empty($data->status)) {
+				$mtn_status = strtoupper(trim((string) $data->status));
+				if ($mtn_status === 'SUCCESSFUL') {
+					$out->status = $this->paid_status_name; // 'paid'
+					$out->message = __('Merci, le paiement MTN MoMo a été validé !', $this->domain);
+				} elseif ($mtn_status === 'FAILED') {
+					$out->status = $this->failed_status_name; // 'failed'
+					$out->message = !empty($data->reason) ? (string) $data->reason : __('Le paiement a été rejeté ou annulé.', $this->domain);
+				} else {
+					$out->status = $this->pending_status_name; // 'pending'
+					$out->message = __('En attente de confirmation sur votre téléphone...', $this->domain);
 				}
 
-				$out->code = $http_code;
-				$out->status = '';
-
-				if (!empty($a->status) && in_array($a->status, array($this->paid_status_name, $this->failed_status_name, $this->pending_status_name), true)) {
-					$out->status = $a->status;
-				}
-
-				if ($out->code == 423) {
-					$out->message = __('Payment method is not available, please contact site Administrator', $this->domain);
-				} else if ($out->status == $this->paid_status_name) {
-					$out->message = __('Thank you, the order has been paid!', $this->domain);
-				}
-
-				$msg = $this->getMsgFromApiAnswer($a);
-				if ($msg !== null) {
-					$out->message = $msg;
+				if (!empty($data->reason)) {
+					$out->reason = $data->reason;
 				}
 			} else {
 				$out->status = false;
 				$out->message = 'Failed to get payment status';
 			}
-			;
 
 			return $out;
 		} catch (Exception $e) {
 			return false;
 		}
-		;
 	}
 
 

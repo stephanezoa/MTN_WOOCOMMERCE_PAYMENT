@@ -222,9 +222,10 @@ class WC_MomoPay_View
 		$html .= '</div>';
 
 		$html .= '<table class="momopay-account-table"><tbody>';
-		$html .= '<tr><th>' . esc_html__('Email marchand :', $cfg->domain) . '</th><td>' . esc_html($merchant_email) . '</td></tr>';
-		$html .= '<tr><th>' . esc_html__('Identifiant marchand / Licence :', $cfg->domain) . '</th><td><code>' . esc_html($cfg->license_id) . '</code></td></tr>';
-		$html .= '<tr><th>' . esc_html__('Devise de la boutique :', $cfg->domain) . '</th><td><strong>' . esc_html($currency['code']) . '</strong>' . ($cfg->isSandboxMode() ? ' <span class="description">(' . esc_html__('Sandbox requiert EUR', $cfg->domain) . ')</span>' : '') . '</td></tr>';
+		$html .= '<tr><th>' . esc_html__('Réseau cible :', $cfg->domain) . '</th><td><strong>' . esc_html__('MTN MoMo Cameroun (XAF - 237)', $cfg->domain) . '</strong></td></tr>';
+		$html .= '<tr><th>' . esc_html__('Connexion API :', $cfg->domain) . '</th><td><span style="color:#059669; font-weight:600;">' . esc_html__('Directe (proxy.momoapi.mtn.com - mtncameroon)', $cfg->domain) . '</span></td></tr>';
+		$html .= '<tr><th>' . esc_html__('Vérification paiement :', $cfg->domain) . '</th><td>' . esc_html__('Polling instantané (aucun callback requis)', $cfg->domain) . '</td></tr>';
+		$html .= '<tr><th>' . esc_html__('Devise de la boutique :', $cfg->domain) . '</th><td><strong>' . esc_html($currency['code']) . '</strong></td></tr>';
 		$html .= '</tbody></table>';
 
 		$html .= '<div class="momopay-status-actions">';
