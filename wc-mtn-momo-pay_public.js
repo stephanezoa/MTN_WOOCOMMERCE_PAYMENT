@@ -18,8 +18,7 @@
     }
 
     function showError(text) {
-        console.log(text);
-        $("#momopay_errorBox").html(text);
+        $("#momopay_errorBox").text(text);
     }
 
     function hideCancelBtn() {
@@ -27,7 +26,7 @@
     }
 
     function updPaymentProcessDesc(text) {
-        $("#momopay_processDescBox").html(text);
+        $("#momopay_processDescBox").text(text);
     }
 
     function timer() {
@@ -45,6 +44,7 @@
             data: {
                 mode: "check_payment",
                 payment_id: paymentCheck.id,
+                order_key: $("#orderKey").val(),
             },
         };
         $.ajax({
@@ -71,7 +71,7 @@
                     return;
                 } else {
                     if (res.desc) {
-                        showError(desc);
+                        showError(res.desc);
                     }
 
                     if (paymentCheck.counter <= paymentCheck.maxCounter) {

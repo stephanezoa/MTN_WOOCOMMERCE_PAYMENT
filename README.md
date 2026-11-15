@@ -36,7 +36,11 @@ Accept payments with MTN MoMo in WooCommerce.
 
 ## Support
 
-For issues, please contact [Stephane Zoa](https://STephanezoa.com) {[stephanezoa2310@gmail.com]} or visit [https://www.hr-skills.com](https://www.hr-skills.com).
+For issues, please contact Stephane Zoa:
+
+- Website: [https://stephanezoa.site](https://stephanezoa.site)
+- Email: [contact@stephanezoa.site](mailto:contact@stephanezoa.site)
+- Phone / WhatsApp: +237 686 002 112
 
 ## License
 

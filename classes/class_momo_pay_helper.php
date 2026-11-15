@@ -1,4 +1,6 @@
 <?php
+defined('ABSPATH') || exit;
+
 class WC_MomoPay_Helper {
 
 	/**
@@ -38,7 +40,7 @@ class WC_MomoPay_Helper {
 		global $wpdb;
 		$table_name = self::getPaymentsTableName();
 		
-		$wpdb->query('DROP TABLE ' . $table_name);
+		$wpdb->query('DROP TABLE IF EXISTS `' . esc_sql($table_name) . '`');
 		
 		delete_option('woocommerce_momopay_settings');		
 		delete_option('wc_momopay_adv_data');		
