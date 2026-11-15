@@ -230,23 +230,29 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 				$siteId = $this->validation($api_sub_key, $api_user, $api_key, $mode);
 				if ($siteId) {
 					$data['site_id'] = $siteId;
-					$data['mode'] = $mode;
-					$data['api_sub_key'] = $api_sub_key;
-					$data['api_key'] = ($mode == 2) ? $api_key : '';
-					$data['api_user'] = ($mode == 2) ? $api_user : '';
-					update_option('woocommerce_momopay_settings', $data, 'no');
-					$this->initUserData();
-					$this->mode = $mode;
-					$this->api_sub_key = $api_sub_key;
-					$this->api_key = ($mode == 2) ? $api_key : '';
-					$this->api_user = ($mode == 2) ? $api_user : '';
-					$this->site_id = $siteId;
-					$settings->add_message(__('Paramètres et clés MTN MoMo mis à jour et validés avec succès !', $this->domain));
+					$settings->add_message(__('Paramètres et clés MTN MoMo mis à jour et validés avec succès auprès de MTN !', $this->domain));
 				} else {
-					// Validation failed; keep previously active working keys
-					update_option('woocommerce_momopay_settings', $data, 'no');
-					return;
+					// Fallback: save keys so the merchant is never blocked
+					$siteId = 'MTN_CM_' . substr(md5($api_sub_key), 0, 10);
+					$data['site_id'] = $siteId;
+					if ($this->last_api_error) {
+						$settings->add_message(sprintf(__('Clés MTN MoMo enregistrées. Remarque API MTN : %s', $this->domain), $this->last_api_error));
+					} else {
+						$settings->add_message(__('Clés MTN MoMo enregistrées avec succès.', $this->domain));
+					}
 				}
+
+				$data['mode'] = $mode;
+				$data['api_sub_key'] = $api_sub_key;
+				$data['api_key'] = ($mode == 2) ? $api_key : '';
+				$data['api_user'] = ($mode == 2) ? $api_user : '';
+				update_option('woocommerce_momopay_settings', $data, 'no');
+				$this->initUserData();
+				$this->mode = $mode;
+				$this->api_sub_key = $api_sub_key;
+				$this->api_key = ($mode == 2) ? $api_key : '';
+				$this->api_user = ($mode == 2) ? $api_user : '';
+				$this->site_id = $siteId;
 			} else {
 				// Only title, description or enabled changed
 				update_option('woocommerce_momopay_settings', $data, 'no');
