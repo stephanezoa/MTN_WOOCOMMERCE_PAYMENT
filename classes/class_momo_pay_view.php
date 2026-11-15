@@ -204,52 +204,36 @@ class WC_MomoPay_View
 	public static function createFinishBox($cfg)
 	{
 		$currency = self::getCurrencyInfo($cfg);
-		$promo_option = '';
 
-		$promo_box_class = 'momopay_limits-box';
-		$promo_text = "MOMO FREE GATEWAY";
+		$mode_badge = $cfg->isSandboxMode()
+			? '<span class="momopay-mode-badge momopay-mode-sandbox">' . esc_html__('Sandbox (Test)', $cfg->domain) . '</span>'
+			: '<span class="momopay-mode-badge momopay-mode-live">' . esc_html__('Live (Production)', $cfg->domain) . '</span>';
 
-		$html = '<div class="mtn-momo-pay_main">';
-		$html .= '<div id="momopay_leftSide" class="mtn-momo-pay_left">';
-		$html .= '
-		<p class="' . $promo_box_class . '">' . $promo_text . '</p>' . $promo_option .
-			'<table class="form-table" data-momopay-step="3">
-				<tbody>
-				<tr valign="top">
-					<th scope="row" class="titledesc">Merchant Email</th>
-					<td class="forminp">
-						<p class="description">' . esc_html($cfg->user_email_registered) . '</p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row" class="titledesc">Merchant ID</th>
-					<td class="forminp">
-						<p class="description">' . esc_html($cfg->license_id) . '</p>
-					</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row" class="titledesc">Currency</th>
-					<td class="forminp">
-						<p class="description"><strong>' . (($cfg->isSandboxMode()) ? 'EUR' : $currency['code']) . '</strong></p>';
+		$status_badge = '<span class="momopay-status-badge momopay-status-active">&#10003; ' . esc_html__('Actif & Configuré', $cfg->domain) . '</span>';
 
-		if ($currency['code'] == 'EUR')
-			$html .= '<p class="mtn-momo-pay_error-box">Sandbox mode! No real payments can be done, no USSD push to mobile phone.</p>';
-		else
-			$html .= '<p class="mtn-momo-pay_error-box">You can only request money in this currency!</p>';
+		$merchant_email = !empty($cfg->user_email_registered) ? $cfg->user_email_registered : $cfg->user_email;
 
-		$html .= '	</td>
-				</tr>
-				<tr valign="top">
-					<th scope="row" class="titledesc">Collection Primary key</th>
-					<td class="forminp">
-						<p class="description">' . esc_html($cfg->api_sub_key) . '</p>
-					</td>
-				</tr>
-				</tbody>
-			</table>
-			
-			<input type="hidden" name="woocommerce_momopay_reset_user_data" value="1" >';
+		$html = '<div class="momopay-status-card" data-momopay-step="3">';
+		$html .= '<div class="momopay-status-card-header">';
+		$html .= '<div class="momopay-status-card-title">';
+		$html .= '<h3>' . esc_html__('Passerelle de paiement MTN MoMo', $cfg->domain) . '</h3>';
+		$html .= '<div class="momopay-badges">' . $status_badge . ' ' . $mode_badge . '</div>';
 		$html .= '</div>';
+		$html .= '</div>';
+
+		$html .= '<table class="momopay-account-table"><tbody>';
+		$html .= '<tr><th>' . esc_html__('Email marchand :', $cfg->domain) . '</th><td>' . esc_html($merchant_email) . '</td></tr>';
+		$html .= '<tr><th>' . esc_html__('Identifiant marchand / Licence :', $cfg->domain) . '</th><td><code>' . esc_html($cfg->license_id) . '</code></td></tr>';
+		$html .= '<tr><th>' . esc_html__('Devise de la boutique :', $cfg->domain) . '</th><td><strong>' . esc_html($currency['code']) . '</strong>' . ($cfg->isSandboxMode() ? ' <span class="description">(' . esc_html__('Sandbox requiert EUR', $cfg->domain) . ')</span>' : '') . '</td></tr>';
+		$html .= '</tbody></table>';
+
+		$html .= '<div class="momopay-status-actions">';
+		$html .= '<div class="momopay-edit-keys-notice"><p><strong>' . esc_html__('Modification des clés à volonté :', $cfg->domain) . '</strong> ' . esc_html__('Vous pouvez modifier votre mode (Sandbox / Live), votre clé primaire de collection, votre clé API et votre utilisateur API dans le formulaire ci-dessous à tout moment, puis cliquer sur Enregistrer les modifications.', $cfg->domain) . '</p></div>';
+		$html .= '<div class="momopay-reset-box">';
+		$html .= '<button type="submit" name="woocommerce_momopay_reset_account" value="1" class="button button-secondary momopay-btn-reset-account" id="momopay_reset_account_btn" onclick="return confirm(\'' . esc_js(__('Attention : Voulez-vous vraiment réinitialiser ce compte marchand ? Toutes les clés devront être ressaisies.', $cfg->domain)) . '\');">' . esc_html__('Réinitialiser / Changer de compte marchand', $cfg->domain) . '</button>';
+		$html .= '</div>';
+		$html .= '</div>';
+
 		$html .= '</div>';
 
 		return $html;
@@ -277,11 +261,16 @@ class WC_MomoPay_View
 	}
 
 
-	public static function createReceiptBox($order, $payment_id, $cfg)
+	public static function createReceiptBox($order, $payment_id, $cfg, $error_message = '')
 	{
-		$process_desc = (!$payment_id)
-			? esc_html__('Payment failed, MTN MoMo plugin is not configured', $cfg->domain)
-			: esc_html__('Accept payment on ', $cfg->domain) . esc_html($order->get_billing_phone()) . esc_html__(' with a PIN', $cfg->domain);
+		$is_error = empty($payment_id);
+		if ($is_error) {
+			$process_desc = !empty($error_message)
+				? esc_html($error_message)
+				: esc_html__('Échec du paiement : Le plugin MTN MoMo n\'est pas configuré ou la connexion au serveur MTN a échoué.', $cfg->domain);
+		} else {
+			$process_desc = esc_html__('Accept payment on ', $cfg->domain) . esc_html($order->get_billing_phone()) . esc_html__(' with a PIN', $cfg->domain);
+		}
 
 		$orderCancelUrl = $order->get_cancel_order_url('');
 		$endpointUrl = admin_url('admin-ajax.php');
@@ -293,13 +282,17 @@ class WC_MomoPay_View
 		$cartPaymentWithIdUrl = add_query_arg('momo_payment_id', rawurlencode((string) $payment_id), $cartUrl);
 
 		$sandboxLine = '';
-		if ($cfg->isSandboxMode()) {
-			$sandboxLine = '<h3 style="color:red; font-weight: bold;">' . esc_html__('Sandbox mode - payment will be accepted automatically', $cfg->domain) . '</h3>';
+		if ($cfg->isSandboxMode() && !$is_error) {
+			$sandboxLine = '<h3 class="momopay-sandbox-badge-checkout">' . esc_html__('Mode Sandbox - le paiement sera accepté automatiquement après quelques secondes', $cfg->domain) . '</h3>';
 		}
-		$html = '<div class="momopay-checkout-box">' . $sandboxLine . '
-			<h3 id="momopay_processDescBox">' . $process_desc . '</h3>
+
+		$boxClass = 'momopay-checkout-box' . ($is_error ? ' momopay-has-error' : ' momopay-waiting-pin');
+		$descClass = $is_error ? 'momopay-error-desc' : 'momopay-waiting-desc';
+
+		$html = '<div class="' . esc_attr($boxClass) . '">' . $sandboxLine . '
+			<h3 id="momopay_processDescBox" class="' . esc_attr($descClass) . '">' . $process_desc . '</h3>
 			<img class="momopay-checkout-logo" src="' . esc_url(plugin_dir_url(__FILE__) . '../assets/img/mtn-momo-logo.png') . '" alt="MTN MoMoPay payments">
-			<div class="mtn-momo-pay_error-box" id="momopay_errorBox"></div>
+			<div class="mtn-momo-pay_error-box" id="momopay_errorBox">' . ($is_error ? esc_html($process_desc) : '') . '</div>
 			<input type="hidden" id="currentOrderId" value="' . esc_attr($order->get_id()) . '" />
 			<input type="hidden" id="orderKey" value="' . esc_attr($order->get_order_key()) . '" />
 			<input type="hidden" id="paymentId" value="' . esc_attr($payment_id) . '" />
@@ -310,7 +303,9 @@ class WC_MomoPay_View
 			<input type="hidden" id="cartUrl" value="' . esc_url($cartUrl) . '" />
 			<input type="hidden" id="orderReceivedUrl" value="' . esc_url($orderReceivedUrl) . '" />
 			<input type="hidden" id="cartPaymentWithIdUrl" value="' . esc_url($cartPaymentWithIdUrl) . '" />
-			<button id="cancelCurrentOrder">' . esc_html__('Cancel order', $cfg->domain) . '</button>
+			<div class="momopay-checkout-actions">
+				<a href="' . esc_url($orderCancelUrl) . '" class="button button-secondary" id="cancelCurrentOrder">' . esc_html__('Annuler la commande', $cfg->domain) . '</a>
+			</div>
 		</div>';
 
 		return $html;

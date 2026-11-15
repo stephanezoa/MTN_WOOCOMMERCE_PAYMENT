@@ -8,7 +8,8 @@
 	}
 
 	function setSaveBtnText() {
-		$("button[name=save]:last").each(function () {
+		var $btns = $("button.woocommerce-save-button, input.woocommerce-save-button, button[name=save], input[name=save]");
+		$btns.each(function () {
 			$(this).show();
 		});
 
@@ -19,26 +20,32 @@
 
 		switch (step) {
 			case 1:
-				text = "Continue";
+				text = "Continuer";
 				break;
 			case 2:
-				text = "Save";
+				text = "Valider et enregistrer les clés";
 				break;
 			case 3:
-				text = "Reset settings";
+				text = "Enregistrer les modifications";
 				break;
 		}
 
-		$("button[name=save]:last").each(function () {
-			$(this).text(text);
-		});
+		if (text) {
+			$btns.each(function () {
+				if (this.tagName === "INPUT") {
+					$(this).val(text);
+				} else {
+					$(this).text(text);
+				}
+				$(this).show();
+			});
+		}
 	}
 
 	function updValidateBox(mode) {
 		if (mode == 1) {
 			$("[data-momoadv-box=live]").addClass("hide");
 			$("[data-momoadv-box=sandbox]").removeClass("hide");
-
 			return;
 		}
 
@@ -46,17 +53,29 @@
 		$("[data-momoadv-box=sandbox]").addClass("hide");
 	}
 
+	function initApiKeyToggle() {
+		var $apiKeyInput = $("#woocommerce_momopay_api_key");
+		if ($apiKeyInput.length && !$("#momopay_toggle_api_key").length) {
+			var $btn = $('<button type="button" id="momopay_toggle_api_key" class="button button-secondary momopay-toggle-pw-btn" style="margin-left: 8px;">Afficher</button>');
+			$apiKeyInput.after($btn);
+			$btn.on("click", function (e) {
+				e.preventDefault();
+				if ($apiKeyInput.attr("type") === "password") {
+					$apiKeyInput.attr("type", "text");
+					$(this).text("Masquer");
+				} else {
+					$apiKeyInput.attr("type", "password");
+					$(this).text("Afficher");
+				}
+			});
+		}
+	}
+
 	$(document).ready(function () {
 		$("body").on("change", "#woocommerce_momopay_mode", function () {
 			updValidateBox(this.value);
 		});
 		setSaveBtnText();
-
-		$("body").on("submit", "#mainform", function () {
-			if (getCurrentStep() == 3) {
-				var result = confirm("Are you sure you want to reset your settings?");
-				if (!result) return false;
-			}
-		});
+		initApiKeyToggle();
 	});
 })(jQuery, window, document);
