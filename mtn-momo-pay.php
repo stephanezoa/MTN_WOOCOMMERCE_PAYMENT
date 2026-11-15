@@ -3,20 +3,20 @@
  * Plugin Name: ROY MTN MoMo for WooCommerce
  * Plugin URI: https://stephanezoa.site
  * Description: Accept payments with MTN MoMo in WooCommerce
- * Version: 1.0.9
+ * Version: 1.0.10
  * Author: Stephane Zoa
  * Author URI: https://stephanezoa.site
  * Licence: GPL2 
  * Text Domain: mtn-momo-pay
  * Tested up to: 6.8
- * Stable tag: 1.0.9
+ * Stable tag: 1.0.10
  * WC requires at least: 4.2.0
  * WC tested up to: 11.3
  */
 
 defined('ABSPATH') or die("No access please!");
 
-define('MOMOPAY_PLUGIN_VERSION', '1.0.9');
+define('MOMOPAY_PLUGIN_VERSION', '1.0.10');
 
 // Declare compatibility with WooCommerce HPOS (High-Performance Order Storage)
 add_action('before_woocommerce_init', function () {
@@ -146,6 +146,13 @@ add_action('admin_enqueue_scripts', 'woo_momo_pay_admin_assets');
 add_action('wp_enqueue_scripts', 'woo_momo_pay_public_assets');
 
 add_action('plugins_loaded', 'woo_momo_pay_gateway_init');
+
+// Background re-check of pending MoMo payments (see WC_MomoPay_Gateway::scheduleReconcile)
+add_action('momopay_reconcile_payment', function ($payment_id, $attempt = 1) {
+	if (class_exists('WC_MomoPay_Gateway')) {
+		WC_MomoPay_Gateway::reconcilePayment($payment_id, $attempt);
+	}
+}, 10, 2);
 
 if (!add_filter('woocommerce_payment_gateways', 'woo_momopay_add_gateway_class'))
 	die;

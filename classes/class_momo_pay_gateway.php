@@ -107,7 +107,7 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 		$this->user_email = $this->get_option('user_email');
 		$this->user_name = $this->get_option('user_name');
 		$this->user_phone = $this->get_option('user_phone');
-		$this->is_user_registered = $this->get_option('user_registered');
+		$this->is_user_registered = true; // direct MTN API: no third-party registration step
 		$this->user_email_registered = $this->get_option('user_email_registered');
 
 		if ($this->is_user_registered) {
@@ -150,11 +150,11 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 
 		// Save standard WooCommerce settings (enabled, title, description) if configured or in setup
 		if ($current_step >= 2) {
-			if (isset($post_data[$this->wc_field_pref . 'enabled'])) {
-				$val = $post_data[$this->wc_field_pref . 'enabled'];
+			// the "enabled" checkbox is only displayed once the keys are validated (step 3);
+			// before that, do not turn the gateway off just because the field is absent
+			if ($current_step == 3) {
+				$val = isset($post_data[$this->wc_field_pref . 'enabled']) ? $post_data[$this->wc_field_pref . 'enabled'] : '';
 				$data['enabled'] = ($val === '1' || $val === 'yes') ? 'yes' : 'no';
-			} else {
-				$data['enabled'] = 'no';
 			}
 			if (isset($post_data[$this->wc_field_pref . 'title'])) {
 				$data['title'] = sanitize_text_field(wp_unslash($post_data[$this->wc_field_pref . 'title']));
@@ -211,8 +211,8 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 				update_option('woocommerce_momopay_settings', $data, 'no');
 				return;
 			}
-			if ($mode == 2 && !$this->isLiveCurrency($this->currency['code'])) {
-				$settings->add_error(sprintf(__('La devise %s n\'est pas supportée pour le mode Live MTN MoMo !', $this->domain), $this->currency['code']));
+			if ($mode == 2 && $this->currency['code'] !== 'XAF') {
+				$settings->add_error(sprintf(__('La devise %s n\'est pas supportée en Live : MTN MoMo Cameroun encaisse uniquement en XAF (FCFA). Changez la devise dans WooCommerce > Réglages > Général.', $this->domain), $this->currency['code']));
 				update_option('woocommerce_momopay_settings', $data, 'no');
 				return;
 			}
@@ -231,15 +231,19 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 				if ($siteId) {
 					$data['site_id'] = $siteId;
 					$settings->add_message(__('Paramètres et clés MTN MoMo mis à jour et validés avec succès auprès de MTN !', $this->domain));
+				} elseif ($mode == 2) {
+					// Live keys rejected by MTN: keep them for editing but do NOT activate the gateway
+					$siteId = '';
+					unset($data['site_id']);
+					$settings->add_error(sprintf(
+						__('MTN a refusé ces clés Live, la passerelle reste désactivée. Détail : %s', $this->domain),
+						$this->last_api_error ? $this->last_api_error : __('erreur inconnue', $this->domain)
+					));
 				} else {
-					// Fallback: save keys so the merchant is never blocked
+					// Sandbox: no API user/key provisioned here, keep the historical behaviour
 					$siteId = 'MTN_CM_' . substr(md5($api_sub_key), 0, 10);
 					$data['site_id'] = $siteId;
-					if ($this->last_api_error) {
-						$settings->add_message(sprintf(__('Clés MTN MoMo enregistrées. Remarque API MTN : %s', $this->domain), $this->last_api_error));
-					} else {
-						$settings->add_message(__('Clés MTN MoMo enregistrées avec succès.', $this->domain));
-					}
+					$settings->add_message(__('Clés Sandbox enregistrées.', $this->domain));
 				}
 
 				$data['mode'] = $mode;
@@ -259,51 +263,7 @@ class WC_MomoPay_Gateway extends WC_Payment_Gateway
 				$this->initUserData();
 				$settings->add_message(__('Réglages MTN MoMo enregistrés.', $this->domain));
 			}
-		} else {
-			// Step 1: Merchant registration
-			$user_email = sanitize_email($this->getPostField($post_data, 'user_email'));
-			$user_phone = $this->getPostField($post_data, 'user_phone');
-			$user_name = $this->getPostField($post_data, 'user_name');
-
-			$settings = new WC_Admin_Settings();
-
-			if (!is_email($user_email)) {
-				$settings->add_error(__('Veuillez saisir une adresse email marchand valide.', $this->domain));
-				return;
-			}
-			if (empty($user_phone)) {
-				$settings->add_error(__('Veuillez saisir un numéro de téléphone marchand (ou WhatsApp) pour MTN MoMo.', $this->domain));
-				return;
-			}
-			if (empty($user_name)) {
-				$user_name = function_exists('get_bloginfo') ? get_bloginfo('name') : 'Boutique MoMo';
-			}
-
-			$registrationResult = $this->registration(
-				$user_name,
-				$user_email,
-				$user_phone
-			);
-			if ($registrationResult) {
-				if ($this->license_id && $this->secret_key) {
-					$data['user_registered'] = true;
-					$data['user_email_registered'] = $user_email;
-					$data['user_email'] = $user_email;
-					$data['user_name'] = $user_name;
-					$data['user_phone'] = $user_phone;
-					$data['license_id'] = $this->license_id;
-					$data['secret_key'] = $this->secret_key;
-					update_option('woocommerce_momopay_settings', $data, 'no');
-					$this->initUserData();
-					$this->is_user_registered = true;
-					$this->license_id = $this->license_id;
-					$this->secret_key = $this->secret_key;
-					$settings->add_message(__('Inscription marchand réussie ! Veuillez maintenant configurer vos clés API ci-dessous.', $this->domain));
-				}
-			}
 		}
-
-		$this->updateUserData();
 	}
 
 	/**
@@ -530,41 +490,23 @@ jQuery(document).ready(function() {
 
 	public function is_available()
 	{
-		$is_available = ('yes' === $this->enabled);
+		$is_available = ('yes' === $this->enabled) && $this->isActiveGateway();
 
-		if (!$this->isActiveGateway() || empty($this->license_id) || empty($this->secret_key)) {
-			$is_available = false;
-		}
-
-		if ($is_available && $this->isSandboxMode() && !empty($this->currency['code']) && $this->currency['code'] !== 'EUR') {
+		if ($is_available && !$this->isCurrencySupported()) {
 			$is_available = false;
 		}
 
 		return apply_filters('woocommerce_gateway_momopay_is_available', $is_available, $this);
 	}
 
-	protected function registration($user_name, $user_email, $user_phone)
+	/**
+	 * Live collects XAF only (MTN Cameroon); Sandbox only supports EUR.
+	 * Never send an amount expressed in another currency.
+	 */
+	public function isCurrencySupported()
 	{
-		$res = $this->registerMoMo($user_name, $user_email, $user_phone);
-		if ($res === false) {
-			$settings = new WC_Admin_Settings();
-			if (!empty($this->currency['code']) && !$this->isTrueCurrency($this->currency['code'])) {
-				$currencyError = sprintf(__("La devise de votre boutique (%s) n'est pas supportée par MTN MoMo ! Veuillez configurer la boutique en EUR ou dans une devise supportée (ex: XAF, XOF, UGX, GHS, RWF...).", $this->domain), $this->currency['code']);
-				$settings->add_error($currencyError);
-			} else {
-				$error = __('Impossible de finaliser l\'enregistrement MTN MoMo :', $this->domain);
-				if ($this->last_api_error) {
-					$error .= " " . $this->last_api_error;
-				}
-				$settings->add_error($error);
-			}
-			return false;
-		}
-
-		$this->license_id = $res->licenseId;
-		$this->secret_key = $res->secretKey;
-
-		return true;
+		$code = !empty($this->currency['code']) ? $this->currency['code'] : '';
+		return $this->isSandboxMode() ? ($code === 'EUR') : ($code === 'XAF');
 	}
 
 	protected function validation($api_sub_key, $api_user, $api_key, $mode)
@@ -575,12 +517,12 @@ jQuery(document).ready(function() {
 			$settings->add_error($currencyError);
 			return false;
 		} else if (
-			!$this->isLiveCurrency($this->currency['code'])
+			$this->currency['code'] !== 'XAF'
 			&& $mode == 2
 		) {
-			//do not allow live mode if not live currency!
+			// Live collects XAF only: refuse any other store currency
 			$currencyError = sprintf(
-				__("eShop currency %s is not supported for the Live usage!", $this->domain),
+				__("La devise de la boutique (%s) n'est pas supportée en Live : MTN MoMo Cameroun encaisse uniquement en XAF (FCFA).", $this->domain),
 				$this->currency['code']
 			);
 			$settings->add_error($currencyError);
@@ -632,7 +574,7 @@ jQuery(document).ready(function() {
 		$this->license_id = @$adv_data['license_id'];
 		$this->secret_key = @$adv_data['secret_key'];
 		$this->site_id = @$adv_data['site_id'];
-		$this->is_user_registered = @$adv_data['user_registered'];
+		$this->is_user_registered = true;
 		$this->user_email_registered = @$adv_data['user_email_registered'];
 		// $this->is_user_saved         = @$adv_data['user_saved'];
 		$this->user_request_counter = @$adv_data['user_request_counter'];
@@ -683,72 +625,9 @@ jQuery(document).ready(function() {
 		}
 	}
 
-	public function updateUserData()
-	{
-		if (($res = $this->getUserData()) === false)
-			return;
-
-		$this->user_request_counter = $res->requestCount;
-		$this->max_request_limit = $res->requestLimit;
-
-		$this->setAdvData('max_request_limit', $res->requestLimit);
-		$this->setAdvData('user_request_counter', $res->requestCount);
-	}
-
-
 	public function getLastError()
 	{
 		return ($this->last_api_error) ? $this->last_api_error : '';
-	}
-
-
-	protected function registerMoMo($user_name, $user_email, $user_phone)
-	{
-		$url = 'https://momopay.clickon.ch/getLicenseForEmail';
-		$data = array(
-			'fullName' => $user_name,
-			'emailAddress' => $user_email,
-			'phoneNumber' => $this->formatPayerPhone($user_phone),
-			'currencyCode' => !empty($this->currency['code']) ? $this->currency['code'] : 'EUR',
-			'type' => 'wooplugin',
-			'siteAddress' => get_site_url()
-		);
-
-		$args = array(
-			'timeout' => 45,
-			'headers' => array(
-				'Content-Type' => 'application/json',
-			),
-			'body' => json_encode($data)
-		);
-
-		$res = wp_remote_post($url, $args);
-
-		if (is_wp_error($res)) {
-			$this->last_api_error = $res->get_error_message();
-			return false;
-		}
-
-		$code = (int) wp_remote_retrieve_response_code($res);
-		$body = wp_remote_retrieve_body($res);
-		$res_obj = json_decode($body);
-
-		if ($code != 200 || !$res_obj) {
-			$msg = (is_object($res_obj) && !empty($res_obj->message)) ? $res_obj->message : ('Erreur serveur HTTP ' . $code);
-			$this->last_api_error = $msg;
-			return false;
-		}
-
-		if (empty($res_obj->licenseId) || empty($res_obj->secretKey)) {
-			$this->last_api_error = !empty($res_obj->message) ? $res_obj->message : __('Les paramètres MTN MoMo sont invalides !', $this->domain);
-			return false;
-		}
-
-		$out = new stdClass();
-		$out->licenseId = (string) $res_obj->licenseId;
-		$out->secretKey = (string) $res_obj->secretKey;
-
-		return $out;
 	}
 
 
@@ -772,6 +651,17 @@ jQuery(document).ready(function() {
 		$base_url = $is_sandbox ? 'https://sandbox.momodeveloper.mtn.com' : 'https://proxy.momoapi.mtn.com';
 		$target_env = $is_sandbox ? 'sandbox' : 'mtncameroon';
 		$url = $base_url . '/collection/token/';
+
+		// Cache the token (valid 1h) so status polling does not request a new one every few seconds.
+		// Explicit credentials (key validation in admin) always bypass the cache.
+		$use_cache = ($api_sub_key === null && $api_user === null && $api_key === null);
+		$cache_key = 'momopay_tok_' . md5($target_env . '|' . $user . '|' . $key . '|' . $sub_key);
+		if ($use_cache) {
+			$cached = get_transient($cache_key);
+			if (!empty($cached) && is_string($cached)) {
+				return $cached;
+			}
+		}
 
 		$auth_str = base64_encode(trim((string) $user) . ':' . trim((string) $key));
 		$headers = array(
@@ -800,6 +690,10 @@ jQuery(document).ready(function() {
 		$data = json_decode($body);
 
 		if ($code === 200 && is_object($data) && !empty($data->access_token)) {
+			if ($use_cache) {
+				$ttl = (!empty($data->expires_in) ? (int) $data->expires_in : 3600) - 300;
+				set_transient($cache_key, (string) $data->access_token, max(60, $ttl));
+			}
 			return (string) $data->access_token;
 		}
 
@@ -819,51 +713,6 @@ jQuery(document).ready(function() {
 		return false;
 	}
 
-
-	protected function getUserData()
-	{
-		if (!$this->license_id)
-			return false;
-
-		$url = 'https://momopay.clickon.ch/getLicenseUsage/' . $this->license_id;
-		$args = array(
-			'timeout' => 45,
-			'headers' => array(
-				'Content-Type' => 'application/json',
-				'x-secret-key' => $this->secret_key,
-				'version' => $this->version
-			),
-			'body' => json_encode(array())
-		);
-
-		$res = wp_remote_post($url, $args);
-
-		if (is_wp_error($res)) {
-			$this->last_api_error = $res->get_error_message();
-			return false;
-		}
-
-		$code = (int) wp_remote_retrieve_response_code($res);
-		$body = wp_remote_retrieve_body($res);
-
-		if ($code != 200 || empty($body)) {
-			$this->last_api_error = __('Échec de communication avec la passerelle MoMo, veuillez réessayer plus tard !', $this->domain);
-			return false;
-		}
-
-		$res = json_decode($body);
-
-		if (!isset($res->requestCount) || !isset($res->requestLimit)) {
-			$this->last_api_error = __('Réponse invalide de la passerelle MoMo !', $this->domain);
-			return false;
-		}
-
-		$out = new stdClass();
-		$out->requestCount = (int) $res->requestCount;
-		$out->requestLimit = (int) $res->requestLimit;
-
-		return $out;
-	}
 
 	protected function resetUserData($partial = false)
 	{
@@ -933,7 +782,7 @@ jQuery(document).ready(function() {
 
 	public function isRegisteredUser()
 	{
-		return ($this->secret_key && $this->license_id) ? true : false;
+		return true;
 	}
 
 	public static function getTrueCurrencies()
@@ -1033,7 +882,10 @@ jQuery(document).ready(function() {
 
 	protected function isActiveGateway()
 	{
-		return (!empty($this->api_sub_key) && (!empty($this->site_id) || (!empty($this->api_user) && !empty($this->api_key))));
+		if (empty($this->api_sub_key) || empty($this->site_id)) {
+			return false;
+		}
+		return $this->isSandboxMode() || (!empty($this->api_user) && !empty($this->api_key));
 	}
 
 	/**
@@ -1059,7 +911,7 @@ jQuery(document).ready(function() {
 					$payment_id = $existing->payment_id;
 				} else {
 					$prepare_order = $this->preparePaymentData($order);
-					if (empty($prepare_order['payer'])) {
+					if (!preg_match('/^237\d{9}$/', (string) $prepare_order['payer'])) {
 						$error_message = __('Un numéro de téléphone de facturation valide est requis pour payer avec MTN MoMo.', $this->domain);
 					} else {
 						$this->addCommentToOrder($order);
@@ -1082,6 +934,7 @@ jQuery(document).ready(function() {
 									'status' => $this->pending_status_name
 								);
 								$this->saveTransaction($trn);
+								self::scheduleReconcile($payment_id, 1);
 							} else {
 								$api_msg = is_object($payment_result) ? $this->getMsgFromApiAnswer($payment_result) : null;
 								$error_message = $api_msg ? sprintf(__('Paiement MTN refusé : %s', $this->domain), $api_msg) : __('Échec de l\'initialisation du paiement MTN MoMo.', $this->domain);
@@ -1108,6 +961,17 @@ jQuery(document).ready(function() {
 		}
 
 		$is_sandbox = $this->isSandboxMode();
+
+		// never request a collection in a currency the account cannot collect
+		if (!$this->isCurrencySupported()) {
+			$this->last_api_error = __('Devise de la boutique non supportée par MTN MoMo (Live : XAF uniquement).', $this->domain);
+			return false;
+		}
+		if ((int) round((float) $order['amount']) < 1) {
+			$this->last_api_error = __('Montant invalide.', $this->domain);
+			return false;
+		}
+
 		$base_url = $this->getMtnBaseUrl();
 		$target_env = $this->getMtnTargetEnvironment();
 		$url = $base_url . '/collection/v1_0/requesttopay';
@@ -1180,7 +1044,7 @@ jQuery(document).ready(function() {
 
 			$base_url = $this->getMtnBaseUrl();
 			$target_env = $this->getMtnTargetEnvironment();
-			$url = $base_url . '/collection/v1_0/requesttopay/' . $payment_id;
+			$url = $base_url . '/collection/v1_0/requesttopay/' . rawurlencode($payment_id);
 
 			$headers = array(
 				'Authorization' => 'Bearer ' . $access_token,
@@ -1333,6 +1197,38 @@ jQuery(document).ready(function() {
 		}
 
 		return (bool) $res;
+	}
+
+	/**
+	 * Polling only runs while the customer keeps the page open. If they close it after
+	 * approving the PIN, re-check the payment in the background so the order still completes.
+	 */
+	public static function scheduleReconcile($payment_id, $attempt)
+	{
+		$delays = array(1 => 120, 2 => 300, 3 => 900, 4 => 3600, 5 => 10800);
+		if (!isset($delays[$attempt])) {
+			return;
+		}
+		wp_schedule_single_event(time() + $delays[$attempt], 'momopay_reconcile_payment', array((string) $payment_id, (int) $attempt));
+	}
+
+	public static function reconcilePayment($payment_id, $attempt = 1)
+	{
+		$gateway = new self();
+		$transaction = $gateway->getTransactionByPaymentId($payment_id);
+		if (!$transaction || $transaction->status === $gateway->paid_status_name) {
+			return;
+		}
+
+		$res = $gateway->getPaymentStatus($payment_id);
+		if (is_object($res) && !empty($res->status)) {
+			$gateway->updateTransaction($payment_id, $res);
+			if ($res->status === $gateway->pending_status_name) {
+				self::scheduleReconcile($payment_id, $attempt + 1);
+			}
+		} else {
+			self::scheduleReconcile($payment_id, $attempt + 1);
+		}
 	}
 
 	public function getTransactionByPaymentId($payment_id)
