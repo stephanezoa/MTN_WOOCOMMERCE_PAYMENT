@@ -785,7 +785,7 @@ jQuery(document).ready(function() {
 		$args = array(
 			'timeout' => 45,
 			'headers' => $headers,
-			'body' => json_encode(array())
+			'body' => ''
 		);
 
 		$res = wp_remote_post($url, $args);
@@ -1128,7 +1128,7 @@ jQuery(document).ready(function() {
 				'partyId' => (string) $payer_phone
 			),
 			'payerMessage' => mb_substr('Commande ' . (!empty($order['note']) ? $order['note'] : ''), 0, 30),
-			'payeeNote' => 'Merci pour votre achat'
+			'payeeNote' => 'Merci'
 		);
 
 		$headers = array(
